@@ -9,27 +9,38 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-body {
+html, body {
   margin: 0;
-  height: 100vh;
+  height: 100%;
+  font-family: system-ui, sans-serif;
+}
+
+/* MAIN LAYOUT */
+#app {
   display: flex;
   flex-direction: column;
-  font-family: system-ui, sans-serif;
+  height: 100vh;
   overflow: hidden;
 }
 
+/* CAMERA AREA — HARD LIMITED */
 #camera {
-  flex: 1;
+  height: 60vh;              /* 🔑 KEY FIX */
+  max-height: 60vh;
   background: black;
   position: relative;
 }
 
+/* CONTROLS ALWAYS VISIBLE */
 #controls {
+  flex: 1;
+  overflow-y: auto;
   padding: 12px;
   background: #fff;
   border-top: 1px solid #ccc;
 }
 
+/* INPUTS */
 input, textarea, button {
   width: 100%;
   font-size: 16px;
@@ -38,10 +49,10 @@ input, textarea, button {
 }
 
 button {
-  background: #007bff;
-  color: white;
   border: none;
   border-radius: 4px;
+  background: #007bff;
+  color: white;
 }
 
 .secondary {
@@ -52,6 +63,7 @@ button {
   display: none;
 }
 
+/* ADDRESS CROP GUIDE */
 #cropBox {
   position: absolute;
   border: 2px dashed yellow;
@@ -65,66 +77,66 @@ button {
 </head>
 
 <body>
+<div id="app">
 
-<div id="camera"></div>
+  <!-- CAMERA -->
+  <div id="camera"></div>
 
-<div id="controls">
+  <!-- CONTROLS -->
+  <div id="controls">
 
-  <!-- STEP 1 -->
-  <div id="stepBarcode">
-    <strong>Scan Barcode</strong>
-    <div id="reader"></div>
-    <input id="barcodeInput" placeholder="Enter / verify barcode">
-    <button onclick="goToAddress()">Next</button>
+    <!-- STEP 1 -->
+    <div id="stepBarcode">
+      <strong>Scan Barcode</strong>
+      <div id="reader"></div>
+      <input id="barcodeInput" placeholder="Enter or verify barcode">
+      <button onclick="goToAddress()">Next</button>
+    </div>
+
+    <!-- STEP 2 -->
+    <div id="stepAddress" class="hidden">
+      <strong>Capture Address</strong>
+      <button onclick="captureAddress()">Capture Address</button>
+      <button class="secondary" onclick="backToBarcode()">Back</button>
+    </div>
+
+    <!-- STEP 3 -->
+    <div id="stepReview" class="hidden">
+      <strong>Review & Edit</strong>
+
+      <input id="name" placeholder="Name">
+      <input id="phone" placeholder="Phone">
+      <textarea id="address" rows="4" placeholder="Address"></textarea>
+      <input id="city" placeholder="City">
+      <input id="pin" placeholder="PIN">
+
+      <button onclick="saveEntry()">Approve & Save</button>
+      <button class="secondary" onclick="rescanAddress()">Rescan</button>
+    </div>
+
+    <!-- STEP 4 -->
+    <div id="stepActions" class="hidden">
+      <button onclick="startNew()">Scan New</button>
+      <button class="secondary" onclick="exportAll()">Export All</button>
+    </div>
+
   </div>
-
-  <!-- STEP 2 -->
-  <div id="stepAddress" class="hidden">
-    <strong>Capture Address</strong>
-    <button onclick="captureAddress()">Capture Address</button>
-    <button class="secondary" onclick="backToBarcode()">Back</button>
-  </div>
-
-  <!-- STEP 3 -->
-  <div id="stepReview" class="hidden">
-    <strong>Review Address</strong>
-
-    <input id="name" placeholder="Name">
-    <input id="phone" placeholder="Phone">
-    <textarea id="address" rows="4" placeholder="Address"></textarea>
-    <input id="city" placeholder="City">
-    <input id="pin" placeholder="PIN">
-
-    <button onclick="saveEntry()">Approve & Save</button>
-    <button class="secondary" onclick="rescanAddress()">Rescan Address</button>
-  </div>
-
-  <!-- STEP 4 -->
-  <div id="stepActions" class="hidden">
-    <button onclick="startNew()">Scan New</button>
-    <button class="secondary" onclick="exportAll()">Export All</button>
-  </div>
-
 </div>
 
 <canvas id="canvas" class="hidden"></canvas>
 
 <script>
-/* ------------------ GLOBAL ------------------ */
 let qr;
 let barcode = "";
-let addressVideo, addressStream;
+let video, stream;
 let db;
 
-/* ------------------ DB ------------------ */
+/* ---------- DB ---------- */
 const req = indexedDB.open("courierDB", 1);
-req.onupgradeneeded = e => {
-  db = e.target.result;
-  db.createObjectStore("scans", { autoIncrement: true });
-};
+req.onupgradeneeded = e => e.target.result.createObjectStore("scans", { autoIncrement: true });
 req.onsuccess = e => db = e.target.result;
 
-/* ------------------ BARCODE ------------------ */
+/* ---------- BARCODE ---------- */
 function startBarcodeScanner() {
   camera.innerHTML = '<div id="reader"></div>';
   qr = new Html5Qrcode("reader");
@@ -132,38 +144,34 @@ function startBarcodeScanner() {
   qr.start(
     { facingMode: "environment" },
     { fps: 10, qrbox: { width: 250, height: 120 } },
-    text => barcodeInput.value = text
+    txt => barcodeInput.value = txt
   );
 }
-
 startBarcodeScanner();
 
 async function goToAddress() {
   barcode = barcodeInput.value.trim();
   if (!barcode) return alert("Barcode required");
 
-  await qr.stop();
-  await qr.clear();
-
+  await qr.stop(); await qr.clear();
   stepBarcode.classList.add("hidden");
   stepAddress.classList.remove("hidden");
-
   startAddressCamera();
 }
 
-/* ------------------ ADDRESS CAMERA ------------------ */
+/* ---------- ADDRESS CAMERA ---------- */
 async function startAddressCamera() {
-  addressVideo = document.createElement("video");
-  addressVideo.setAttribute("playsinline", true);
-  addressVideo.autoplay = true;
+  video = document.createElement("video");
+  video.autoplay = true;
+  video.playsInline = true;
 
-  addressStream = await navigator.mediaDevices.getUserMedia({
+  stream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: "environment" }
   });
 
-  addressVideo.srcObject = addressStream;
+  video.srcObject = stream;
   camera.innerHTML = "";
-  camera.appendChild(addressVideo);
+  camera.appendChild(video);
 
   const crop = document.createElement("div");
   crop.id = "cropBox";
@@ -171,51 +179,42 @@ async function startAddressCamera() {
 }
 
 function captureAddress() {
+  if (!video.videoWidth) return alert("Camera not ready");
+
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
 
-  if (!addressVideo.videoWidth) {
-    alert("Camera not ready. Try again.");
-    return;
-  }
-
-  canvas.width = addressVideo.videoWidth;
-  canvas.height = addressVideo.videoHeight;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
 
   ctx.filter = "grayscale(1) contrast(1.4)";
-  ctx.drawImage(addressVideo, 0, 0);
+  ctx.drawImage(video, 0, 0);
 
   processOCR(canvas);
 }
 
-/* ------------------ OCR ------------------ */
-async function processOCR(canvas) {
-  const w = canvas.width, h = canvas.height;
-
+/* ---------- OCR ---------- */
+async function processOCR(src) {
+  const w = src.width, h = src.height;
   const crop = document.createElement("canvas");
-  crop.width = w * 0.8 * 1.5;
-  crop.height = h * 0.4 * 1.5;
+
+  crop.width = w * 0.8;
+  crop.height = h * 0.4;
 
   crop.getContext("2d").drawImage(
-    canvas,
-    w * 0.1, h * 0.3, w * 0.8, h * 0.4,
-    0, 0, crop.width, crop.height
+    src, w*0.1, h*0.3, w*0.8, h*0.4, 0, 0, crop.width, crop.height
   );
 
-  const result = await Tesseract.recognize(crop, "eng", {
-    preserve_interword_spaces: 1
-  });
-
-  parseAddress(result.data.text);
+  const res = await Tesseract.recognize(crop, "eng");
+  parseAddress(res.data.text);
 }
 
-/* ------------------ PARSER ------------------ */
+/* ---------- PARSER ---------- */
 function parseAddress(text) {
   stepAddress.classList.add("hidden");
   stepReview.classList.remove("hidden");
 
   address.value = text.trim();
-
   phone.value = (text.match(/(?:\+91[-\s]?)?[6-9]\d{9}/) || [""])[0];
   pin.value = (text.match(/\b\d{6}\b/) || [""])[0];
 
@@ -224,16 +223,11 @@ function parseAddress(text) {
   city.value = lines[lines.length - 2] || "";
 }
 
-/* ------------------ SAVE ------------------ */
+/* ---------- SAVE ---------- */
 function saveEntry() {
-  const tx = db.transaction("scans", "readwrite");
-  tx.objectStore("scans").add({
-    barcode,
-    name: name.value,
-    phone: phone.value,
-    address: address.value,
-    city: city.value,
-    pin: pin.value,
+  db.transaction("scans", "readwrite").objectStore("scans").add({
+    barcode, name: name.value, phone: phone.value,
+    address: address.value, city: city.value, pin: pin.value,
     time: Date.now()
   });
 
@@ -241,52 +235,41 @@ function saveEntry() {
   stepActions.classList.remove("hidden");
 }
 
-/* ------------------ NAV ------------------ */
+/* ---------- NAV ---------- */
 function rescanAddress() {
   stepReview.classList.add("hidden");
   stepAddress.classList.remove("hidden");
 }
-
 function backToBarcode() {
-  addressStream.getTracks().forEach(t => t.stop());
+  stream.getTracks().forEach(t => t.stop());
   stepAddress.classList.add("hidden");
   stepBarcode.classList.remove("hidden");
   startBarcodeScanner();
 }
-
 function startNew() {
-  addressStream.getTracks().forEach(t => t.stop());
+  stream.getTracks().forEach(t => t.stop());
   stepActions.classList.add("hidden");
   stepBarcode.classList.remove("hidden");
   barcodeInput.value = "";
   startBarcodeScanner();
 }
 
-/* ------------------ EXPORT ------------------ */
+/* ---------- EXPORT ---------- */
 function exportAll() {
-  const tx = db.transaction("scans", "readonly");
-  const store = tx.objectStore("scans");
+  const tx = db.transaction("scans", "readonly").objectStore("scans");
   const data = [];
-
-  store.openCursor().onsuccess = e => {
-    const cur = e.target.result;
-    if (cur) {
-      data.push(cur.value);
-      cur.continue();
-    } else {
+  tx.openCursor().onsuccess = e => {
+    const c = e.target.result;
+    if (c) { data.push(c.value); c.continue(); }
+    else {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "courier_data.json";
       a.click();
-
-      if (confirm("Clear stored data?")) {
-        db.transaction("scans", "readwrite").objectStore("scans").clear();
-      }
     }
   };
 }
 </script>
-
 </body>
 </html>
