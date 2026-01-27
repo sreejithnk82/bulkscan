@@ -1,256 +1,713 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Courier Booking Helper</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Courier Booking Helper</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Scripts (loaded via CDN) -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    
+    <style>
+        :root {
+            /* Palette: Cyber/Premium Dark Mode */
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --primary: #38bdf8; /* Sky blue */
+            --primary-glow: rgba(56, 189, 248, 0.4);
+            --accent: #818cf8; /* Indigo */
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --danger: #f87171;
+            --success: #4ade80;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --font-family: 'Outfit', sans-serif;
+        }
 
-<!-- ZXing for barcode -->
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none; /* App-like feel */
+            -webkit-tap-highlight-color: transparent;
+        }
 
-<!-- Tesseract for OCR -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(129, 140, 248, 0.15) 0%, transparent 40%);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden; /* Prevent scrolling on main body */
+        }
 
-<style>
-body {
-  font-family: system-ui, Arial;
-  background: #f4f6f8;
-  margin: 0;
-}
-header {
-  background: #0a5cff;
-  color: #fff;
-  padding: 12px;
-  text-align: center;
-  font-size: 18px;
-}
-.page {
-  display: none;
-  padding: 14px;
-}
-.page.active {
-  display: block;
-}
-button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  font-size: 16px;
-  border-radius: 6px;
-  border: none;
-}
-.primary { background: #0a5cff; color: #fff; }
-.secondary { background: #ccc; }
-.danger { background: #d33; color: #fff; }
+        /* App Container */
+        #app {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto;
+        }
 
-input, textarea {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-  margin-top: 6px;
-}
+        /* Views/Steps */
+        .step-view {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px;
+            animation: fadeIn 0.4s ease-out;
+            overflow-y: auto;
+        }
 
-video, canvas {
-  width: 100%;
-  border-radius: 8px;
-  margin-top: 10px;
-}
+        .step-view.active {
+            display: flex;
+        }
 
-.field {
-  margin-top: 12px;
-}
-label {
-  font-weight: 600;
-  display: block;
-}
-pre {
-  background: #eee;
-  padding: 10px;
-  white-space: pre-wrap;
-}
-</style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Typography */
+        h1, h2 {
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+        
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        /* Components */
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: none;
+            font-family: var(--font-family);
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 16px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: #fff;
+            box-shadow: 0 4px 20px -5px var(--primary-glow);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--glass-border);
+            color: var(--text-main);
+        }
+        
+        .btn-outline:active {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .btn-danger {
+            background: rgba(248, 113, 113, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
+
+        /* Cards & Inputs */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            margin-left: 4px;
+        }
+
+        input, textarea {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 14px;
+            color: white;
+            font-family: var(--font-family);
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: none;
+        }
+
+        /* Camera Views */
+        #scanner-container {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 20px;
+            border: 2px solid var(--glass-border);
+        }
+
+        #camera-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 20px;
+        }
+
+        /* Feedback Elements */
+        .feedback-overlay {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9);
+            padding: 12px 24px;
+            border-radius: 30px;
+            border: 1px solid var(--glass-border);
+            z-index: 1000;
+            display: none;
+            font-weight: 500;
+        }
+
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Specific Step Styles */
+        .barcode-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.4rem;
+            letter-spacing: 2px;
+            text-align: center;
+            color: var(--primary);
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 10px;
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { color: var(--text-muted); font-size: 0.9rem; }
+        .data-val { font-weight: 500; text-align: right; max-width: 60%; word-break: break-word; }
+
+        /* Icon Placeholders */
+        .icon-large {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        /* Utility */
+        .hidden { display: none !important; }
+        .w-100 { width: 100%; }
+        .text-center { text-align: center; }
+        .mt-auto { margin-top: auto; }
+
+    </style>
 </head>
-
 <body>
-<header>📦 Courier Booking Helper</header>
 
-<!-- PAGE 1: BARCODE -->
-<div class="page active" id="pageBarcode">
-  <h3>Scan Tracking Barcode</h3>
-  <video id="barcodeVideo"></video>
+    <!-- Feedback Notification -->
+    <div id="feedback" class="feedback-overlay"></div>
 
-  <div class="field">
-    <label>Barcode (manual)</label>
-    <input id="barcodeInput" placeholder="Enter barcode manually" />
-  </div>
+    <div id="app">
 
-  <button class="primary" onclick="nextFromBarcode()">Next</button>
-</div>
+        <!-- STEP 1: Scan Barcode -->
+        <div id="step-scan-barcode" class="step-view active">
+            <h2>Scan Barcode</h2>
+            <p class="subtitle">Point camera at the courier packet barcode.</p>
+            
+            <div id="scanner-container">
+                <div id="reader"></div>
+            </div>
 
-<!-- PAGE 2: ADDRESS SCAN -->
-<div class="page" id="pageAddress">
-  <h3>Scan Address</h3>
-  <video id="addressVideo"></video>
-  <canvas id="addressCanvas" style="display:none"></canvas>
+            <div class="card">
+                <label>Scanned Barcode</label>
+                <input type="text" id="input-barcode" placeholder="Waiting for scan..." autofocus>
+            </div>
 
-  <button class="primary" onclick="captureAddress()">📸 Capture Address</button>
-  <button class="secondary" onclick="goBackToBarcode()">Back</button>
-</div>
+            <div class="mt-auto">
+                <button class="btn btn-primary" onclick="goToStep2()">Next Step</button>
+            </div>
+        </div>
 
-<!-- PAGE 3: REVIEW -->
-<div class="page" id="pageReview">
-  <h3>Review Address</h3>
+        <!-- STEP 2: Capture Address -->
+        <div id="step-scan-address" class="step-view">
+            <h2>Scan Address</h2>
+            <p class="subtitle">Take a clear photo of the address label.</p>
+            
+            <div id="scanner-container">
+                <video id="camera-feed" autoplay playsinline></video>
+                <canvas id="photo-canvas" style="display:none;"></canvas>
+            </div>
 
-  <div class="field">
-    <label>To Address</label>
-    <textarea id="addrText"></textarea>
-  </div>
+            <div class="mt-auto">
+                <button class="btn btn-primary" onclick="captureAndProcessAddress()">
+                    <span id="capture-btn-text">Capture & Extract</span>
+                </button>
+                <button class="btn btn-outline" onclick="goBack(1)">Back</button>
+            </div>
+        </div>
 
-  <div class="field">
-    <label>PIN Code</label>
-    <input id="pinText" />
-  </div>
+        <!-- STEP 3: Review & Edit -->
+        <div id="step-review" class="step-view">
+            <h2>Review Details</h2>
+            <p class="subtitle">Verify extracted data and fill missing info.</p>
 
-  <div class="field">
-    <label>City</label>
-    <input id="cityText" />
-  </div>
+            <div class="card">
+                <div class="input-group">
+                    <label>To Address</label>
+                    <textarea id="input-address" placeholder="Detected address text..."></textarea>
+                </div>
+                <div class="input-group">
+                    <label>PIN Code</label>
+                    <input type="number" id="input-pin" placeholder="e.g. 560001">
+                </div>
+                <div class="input-group">
+                    <label>City</label>
+                    <input type="text" id="input-city" placeholder="City name">
+                </div>
+            </div>
 
-  <button class="secondary" onclick="rescanAddress()">Rescan Address</button>
-  <button class="primary" onclick="approveEntry()">Approve & Save</button>
-</div>
+            <div class="mt-auto">
+                <button class="btn btn-outline" onclick="goToStep2()" style="margin-bottom: 10px;">Re-scan Address</button>
+                <button class="btn btn-primary" onclick="goToStep4()">Save & Continue</button>
+            </div>
+        </div>
 
-<!-- PAGE 4: ACTIONS -->
-<div class="page" id="pageActions">
-  <h3>Saved ✔</h3>
-  <button class="primary" onclick="scanNew()">Scan New</button>
-  <button class="secondary" onclick="exportAll()">Export All</button>
-</div>
+        <!-- STEP 4: Confirm -->
+        <div id="step-confirm" class="step-view">
+            <h2>Confirm Booking</h2>
+            <p class="subtitle">Final check before storing.</p>
 
-<script>
-let barcodeReader = new ZXing.BrowserBarcodeReader();
-let barcode = "";
-let scannedItems = [];
-let addressStream = null;
-let barcodeStream = null;
+            <div class="card">
+                <div class="data-row">
+                    <span class="data-label">Barcode</span>
+                    <span class="data-val" id="disp-barcode"></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Address</span>
+                    <span class="data-val" id="disp-address"></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">City</span>
+                    <span class="data-val" id="disp-city"></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">PIN</span>
+                    <span class="data-val" id="disp-pin"></span>
+                </div>
+            </div>
 
-function showPage(id) {
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
+            <div class="mt-auto">
+                <button class="btn btn-outline" onclick="goBack(3)" style="margin-bottom: 10px;">Edit</button>
+                <button class="btn btn-primary" onclick="storeBooking()">Confirm & Add</button>
+            </div>
+        </div>
 
-/* ---------- BARCODE ---------- */
-async function startBarcodeCamera() {
-  const video = document.getElementById("barcodeVideo");
-  barcodeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-  video.srcObject = barcodeStream;
-  video.play();
+        <!-- STEP 5: Actions -->
+        <div id="step-actions" class="step-view">
+            <div class="mt-auto" style="margin-bottom: auto; padding-top: 40px; text-align: center;">
+                <div class="icon-large">📦</div>
+                <h2>Packet Stored!</h2>
+                <p class="subtitle">Total Bookings in Session: <span id="session-count" style="color:white; font-weight:bold;">0</span></p>
+                
+                <div id="last-added-info" class="card" style="margin-top: 2rem;">
+                    <p style="font-size: 0.8rem; color: var(--text-muted); text-align: left;">Last Added:</p>
+                    <div class="barcode-display" id="last-barcode" style="font-size: 1rem;"></div>
+                </div>
+            </div>
 
-  barcodeReader.decodeFromVideoElement(video, (result, err) => {
-    if (result) {
-      barcode = result.text;
-      document.getElementById("barcodeInput").value = barcode;
-    }
-  });
-}
-startBarcodeCamera();
+            <div class="mt-auto">
+                <button class="btn btn-primary" onclick="startNewScan()">Scan New Packet</button>
+                <button class="btn btn-outline" onclick="exportData()" style="margin-top: 16px;">Export All Data</button>
+                <button class="btn btn-danger" onclick="clearData()" style="margin-top: 16px;">Clear Session</button>
+            </div>
+        </div>
 
-function nextFromBarcode() {
-  barcode = document.getElementById("barcodeInput").value.trim();
-  if (!barcode) {
-    alert("Barcode required");
-    return;
-  }
-  stopBarcodeCamera();
-  startAddressCamera();
-  showPage("pageAddress");
-}
+    </div>
 
-function stopBarcodeCamera() {
-  barcodeReader.reset();
-  barcodeStream?.getTracks().forEach(t => t.stop());
-}
+    <script>
+        // --- State Management ---
+        const APP = {
+            bookings: [],
+            current: {
+                barcode: '',
+                addressRaw: '',
+                address: '',
+                pin: '',
+                city: '',
+                timestamp: null
+            },
+            html5QrcodeScanner: null,
+            cameraStream: null
+        };
 
-/* ---------- ADDRESS ---------- */
-async function startAddressCamera() {
-  const video = document.getElementById("addressVideo");
-  addressStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-  video.srcObject = addressStream;
-  video.play();
-}
+        // --- Init ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initBarcodeScanner();
+            updateSessionCount();
+        });
 
-function captureAddress() {
-  const video = document.getElementById("addressVideo");
-  const canvas = document.getElementById("addressCanvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext("2d").drawImage(video, 0, 0);
+        // --- Navigation ---
+        function showFeedback(msg, type='info', duration=3000) {
+            const el = document.getElementById('feedback');
+            el.innerHTML = type === 'loading' ? `<div class="loading-spinner"></div> ${msg}` : msg;
+            el.style.display = 'flex';
+            el.style.borderColor = type === 'error' ? 'var(--danger)' : 'var(--glass-border)';
+            el.style.alignItems = 'center';
+            
+            if (type !== 'loading') {
+                setTimeout(() => { el.style.display = 'none'; }, duration);
+            }
+        }
+        function hideFeedback() {
+             document.getElementById('feedback').style.display = 'none';
+        }
 
-  stopAddressCamera();
-  runOCR(canvas);
-}
+        function switchStep(stepId) {
+            document.querySelectorAll('.step-view').forEach(el => el.classList.remove('active'));
+            document.getElementById(stepId).classList.add('active');
+        }
 
-function stopAddressCamera() {
-  addressStream?.getTracks().forEach(t => t.stop());
-}
+        function goBack(toStepIndex) {
+            const steps = ['step-scan-barcode', 'step-scan-address', 'step-review', 'step-confirm', 'step-actions'];
+            switchStep(steps[toStepIndex - 1]);
+            if (toStepIndex === 1) startBarcodeScanner(); 
+        }
 
-async function runOCR(canvas) {
-  const { data } = await Tesseract.recognize(canvas, "eng");
-  const text = data.text;
+        // --- Step 1: Barcode ---
+        function initBarcodeScanner() {
+            // We use html5-qrcode library
+            // Initialize but don't start yet, wait for user interaction usually, 
+            // but we start on load for Page 1 as per requirements.
+            startBarcodeScanner();
+        }
 
-  document.getElementById("addrText").value = text.trim();
-  document.getElementById("pinText").value = extractPin(text);
-  document.getElementById("cityText").value = extractCity(text);
+        async function startBarcodeScanner() {
+            // Reset current data
+            // Clear input
+            document.getElementById('input-barcode').value = '';
+            
+            // Check if scanner is already running?
+            // html5-qrcode acts on a div
+            
+            // If already created, clear it
+            if (APP.html5QrcodeScanner) {
+                try { await APP.html5QrcodeScanner.clear(); } catch(e){}
+            }
 
-  showPage("pageReview");
-}
+            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            
+            // Note: We use Html5Qrcode class for more control or Html5QrcodeScanner for UI. 
+            // The prompt says "wizard style", "live camera preview". 
+            // Let's use Html5Qrcode class to adhere to custom UI.
+            
+            const html5QrCode = new Html5Qrcode("reader");
+            APP.html5QrcodeScanner = html5QrCode;
 
-function extractPin(text) {
-  const m = text.match(/\b\d{6}\b/);
-  return m ? m[0] : "";
-}
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                // Handle on success condition with the decoded message.
+                console.log(`Scan result: ${decodedText}`, decodedResult);
+                document.getElementById('input-barcode').value = decodedText;
+                
+                // Audio feedback
+                playBeep();
+                
+                // Stop scanning once found? Requirement says "Continuously scan until a barcode is detected... Once detected: Display...". 
+                // Does it mean stop scanning? Usually yes to avoid double Scan.
+                html5QrCode.stop().then(() => {
+                   showFeedback("Barcode Detected", "success");
+                }).catch(err => console.log(err));
+            };
 
-function extractCity(text) {
-  const lines = text.split("\n").map(l => l.trim()).filter(l => l);
-  return lines.length ? lines[lines.length - 1] : "";
-}
+            const configScan = { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 };
+            
+            // Prefer back camera
+            html5QrCode.start({ facingMode: "environment" }, configScan, qrCodeSuccessCallback)
+            .catch(err => {
+                console.warn("Camera start failed", err);
+                showFeedback("Camera access failed. Please enter manually.", "error");
+            });
+        }
 
-/* ---------- REVIEW ---------- */
-function rescanAddress() {
-  startAddressCamera();
-  showPage("pageAddress");
-}
+        function playBeep() {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.connect(ctx.destination);
+            osc.frequency.value = 800;
+            osc.start();
+            setTimeout(() => osc.stop(), 100);
+        }
 
-function approveEntry() {
-  scannedItems.push({
-    barcode,
-    address: document.getElementById("addrText").value,
-    pin: document.getElementById("pinText").value,
-    city: document.getElementById("cityText").value,
-    timestamp: new Date().toISOString()
-  });
-  showPage("pageActions");
-}
+        async function goToStep2() {
+            const barcode = document.getElementById('input-barcode').value.trim();
+            if (!barcode) {
+                showFeedback("Please scan or enter a barcode", "error");
+                return;
+            }
+            
+            APP.current.barcode = barcode;
+            
+            // Stop scanner if running
+            if (APP.html5QrcodeScanner && APP.html5QrcodeScanner.isScanning) {
+                await APP.html5QrcodeScanner.stop();
+            }
 
-/* ---------- FINAL ---------- */
-function scanNew() {
-  barcode = "";
-  document.getElementById("barcodeInput").value = "";
-  startBarcodeCamera();
-  showPage("pageBarcode");
-}
+            switchStep('step-scan-address');
+            initAddressCamera();
+        }
 
-function exportAll() {
-  const blob = new Blob([JSON.stringify(scannedItems, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "courier-data.json";
-  a.click();
+        // --- Step 2: Address Camera ---
+        async function initAddressCamera() {
+            const video = document.getElementById('camera-feed');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                });
+                video.srcObject = stream;
+                APP.cameraStream = stream;
+            } catch (err) {
+                showFeedback("Unable to access camera for address", "error");
+            }
+        }
 
-  if (confirm("Export successful. Clear stored data?")) {
-    scannedItems = [];
-  }
-}
-</script>
+        async function captureAndProcessAddress() {
+            const video = document.getElementById('camera-feed');
+            const canvas = document.getElementById('photo-canvas');
+            const context = canvas.getContext('2d');
+            const btnText = document.getElementById('capture-btn-text');
+            const btn = btnText.parentElement;
+
+            if (video.videoWidth === 0) return;
+
+            // Feedback
+            btn.disabled = true;
+            showFeedback("Processing image...", "loading", 60000); // long timeout
+
+            // Capture
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Pre-process (Grayscale & Contrast) - Basic thresholding
+            let imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+            let d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+                let r = d[i], g = d[i+1], b = d[i+2];
+                // Grayscale
+                let v = 0.2126*r + 0.7152*g + 0.0722*b;
+                // Thresholding (simple)
+                // v = (v > 100) ? 255 : 0; // Binarization can be risky if lighting is bad, stick to contrast
+                d[i] = d[i+1] = d[i+2] = v;
+            }
+            context.putImageData(imgData, 0, 0);
+
+            // Stop camera to save battery/resources
+            if (APP.cameraStream) {
+                APP.cameraStream.getTracks().forEach(track => track.stop());
+            }
+
+            // Run OCR
+            try {
+                const result = await Tesseract.recognize(canvas, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                           // update progress?
+                        }
+                    }
+                });
+                
+                const text = result.data.text;
+                console.log("OCR Result:", text);
+                
+                parseAddress(text);
+                hideFeedback();
+                btn.disabled = false;
+                switchStep('step-review');
+
+            } catch (err) {
+                console.error(err);
+                showFeedback("OCR Failed. Please try again.", "error");
+                btn.disabled = false;
+                initAddressCamera(); // Restart camera if failed
+            }
+        }
+
+        // --- Step 3: Parse & Review ---
+        function parseAddress(text) {
+            APP.current.addressRaw = text;
+            
+            // Clean text
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            // Find PIN: Look for 6 digit number
+            const pinRegex = /\b[1-9][0-9]{5}\b/g;
+            let foundPin = '';
+            
+            // Naive parsing logic
+            let bestCity = '';
+            
+            // Search whole text for PIN
+            const pinMatches = text.match(pinRegex);
+            if (pinMatches && pinMatches.length > 0) {
+                foundPin = pinMatches[0];
+            }
+
+            // Guess City: usually line before PIN or same line
+            // This is hard without a database of cities. We will take the line containing the PIN or the one above it.
+            // And remove the PIN from it to guess city.
+            
+            let addressBody = lines.join('\n'); // Default to everything
+
+            // Fill inputs
+            document.getElementById('input-address').value = addressBody;
+            document.getElementById('input-pin').value = foundPin;
+            document.getElementById('input-city').value = ''; // User fills this usually
+        }
+
+        function goToStep4() {
+            // Validate
+            const addr = document.getElementById('input-address').value;
+            const pin = document.getElementById('input-pin').value;
+            const city = document.getElementById('input-city').value;
+
+            APP.current.address = addr;
+            APP.current.pin = pin;
+            APP.current.city = city;
+
+            // Fill confirm view
+            document.getElementById('disp-barcode').textContent = APP.current.barcode;
+            document.getElementById('disp-address').textContent = APP.current.address;
+            document.getElementById('disp-pin').textContent = APP.current.pin;
+            document.getElementById('disp-city').textContent = APP.current.city;
+
+            switchStep('step-confirm');
+        }
+
+        // --- Step 4 & 5: Store & Actions ---
+        function storeBooking() {
+            APP.current.timestamp = new Date().toISOString();
+            APP.bookings.push({...APP.current}); // Clone
+            
+            updateSessionCount();
+            document.getElementById('last-barcode').textContent = APP.current.barcode;
+            
+            showFeedback("Saved Successfully!", "success");
+            switchStep('step-actions');
+        }
+
+        function updateSessionCount() {
+            document.getElementById('session-count').textContent = APP.bookings.length;
+        }
+
+        function startNewScan() {
+            // Reset current
+            APP.current = { barcode: '', addressRaw: '', address: '', pin: '', city: '', timestamp: null };
+            switchStep('step-scan-barcode');
+            startBarcodeScanner();
+        }
+
+        function exportData() {
+            if (APP.bookings.length === 0) {
+                showFeedback("No data to export", "error");
+                return;
+            }
+
+            const dataStr = JSON.stringify(APP.bookings, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            const date = new Date().toISOString().slice(0,10);
+            a.href = url;
+            a.download = `courier_bookings_${date}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // prompt clear
+            setTimeout(() => {
+                if (confirm("Export successful. Clear stored data?")) {
+                    clearData();
+                }
+            }, 500);
+        }
+
+        function clearData() {
+            APP.bookings = [];
+            updateSessionCount();
+            showFeedback("Data Cleared", "info");
+        }
+
+    </script>
 </body>
 </html>
