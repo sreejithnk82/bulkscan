@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Courier Booking Helper</title>
+
+<!-- ZXing for barcode -->
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+
+<!-- Tesseract for OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+body {
+  font-family: system-ui, Arial;
+  background: #f4f6f8;
+  margin: 0;
+}
+header {
+  background: #0a5cff;
+  color: #fff;
+  padding: 12px;
+  text-align: center;
+  font-size: 18px;
+}
+.page {
+  display: none;
+  padding: 14px;
+}
+.page.active {
+  display: block;
+}
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 16px;
+  border-radius: 6px;
+  border: none;
+}
+.primary { background: #0a5cff; color: #fff; }
+.secondary { background: #ccc; }
+.danger { background: #d33; color: #fff; }
+
+input, textarea {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  margin-top: 6px;
+}
+
+video, canvas {
+  width: 100%;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.field {
+  margin-top: 12px;
+}
+label {
+  font-weight: 600;
+  display: block;
+}
+pre {
+  background: #eee;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+
+<body>
+<header>📦 Courier Booking Helper</header>
+
+<!-- PAGE 1: BARCODE -->
+<div class="page active" id="pageBarcode">
+  <h3>Scan Tracking Barcode</h3>
+  <video id="barcodeVideo"></video>
+
+  <div class="field">
+    <label>Barcode (manual)</label>
+    <input id="barcodeInput" placeholder="Enter barcode manually" />
+  </div>
+
+  <button class="primary" onclick="nextFromBarcode()">Next</button>
+</div>
+
+<!-- PAGE 2: ADDRESS SCAN -->
+<div class="page" id="pageAddress">
+  <h3>Scan Address</h3>
+  <video id="addressVideo"></video>
+  <canvas id="addressCanvas" style="display:none"></canvas>
+
+  <button class="primary" onclick="captureAddress()">📸 Capture Address</button>
+  <button class="secondary" onclick="goBackToBarcode()">Back</button>
+</div>
+
+<!-- PAGE 3: REVIEW -->
+<div class="page" id="pageReview">
+  <h3>Review Address</h3>
+
+  <div class="field">
+    <label>To Address</label>
+    <textarea id="addrText"></textarea>
+  </div>
+
+  <div class="field">
+    <label>PIN Code</label>
+    <input id="pinText" />
+  </div>
+
+  <div class="field">
+    <label>City</label>
+    <input id="cityText" />
+  </div>
+
+  <button class="secondary" onclick="rescanAddress()">Rescan Address</button>
+  <button class="primary" onclick="approveEntry()">Approve & Save</button>
+</div>
+
+<!-- PAGE 4: ACTIONS -->
+<div class="page" id="pageActions">
+  <h3>Saved ✔</h3>
+  <button class="primary" onclick="scanNew()">Scan New</button>
+  <button class="secondary" onclick="exportAll()">Export All</button>
+</div>
+
+<script>
+let barcodeReader = new ZXing.BrowserBarcodeReader();
+let barcode = "";
+let scannedItems = [];
+let addressStream = null;
+let barcodeStream = null;
+
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+/* ---------- BARCODE ---------- */
+async function startBarcodeCamera() {
+  const video = document.getElementById("barcodeVideo");
+  barcodeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  video.srcObject = barcodeStream;
+  video.play();
+
+  barcodeReader.decodeFromVideoElement(video, (result, err) => {
+    if (result) {
+      barcode = result.text;
+      document.getElementById("barcodeInput").value = barcode;
+    }
+  });
+}
+startBarcodeCamera();
+
+function nextFromBarcode() {
+  barcode = document.getElementById("barcodeInput").value.trim();
+  if (!barcode) {
+    alert("Barcode required");
+    return;
+  }
+  stopBarcodeCamera();
+  startAddressCamera();
+  showPage("pageAddress");
+}
+
+function stopBarcodeCamera() {
+  barcodeReader.reset();
+  barcodeStream?.getTracks().forEach(t => t.stop());
+}
+
+/* ---------- ADDRESS ---------- */
+async function startAddressCamera() {
+  const video = document.getElementById("addressVideo");
+  addressStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  video.srcObject = addressStream;
+  video.play();
+}
+
+function captureAddress() {
+  const video = document.getElementById("addressVideo");
+  const canvas = document.getElementById("addressCanvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+
+  stopAddressCamera();
+  runOCR(canvas);
+}
+
+function stopAddressCamera() {
+  addressStream?.getTracks().forEach(t => t.stop());
+}
+
+async function runOCR(canvas) {
+  const { data } = await Tesseract.recognize(canvas, "eng");
+  const text = data.text;
+
+  document.getElementById("addrText").value = text.trim();
+  document.getElementById("pinText").value = extractPin(text);
+  document.getElementById("cityText").value = extractCity(text);
+
+  showPage("pageReview");
+}
+
+function extractPin(text) {
+  const m = text.match(/\b\d{6}\b/);
+  return m ? m[0] : "";
+}
+
+function extractCity(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+  return lines.length ? lines[lines.length - 1] : "";
+}
+
+/* ---------- REVIEW ---------- */
+function rescanAddress() {
+  startAddressCamera();
+  showPage("pageAddress");
+}
+
+function approveEntry() {
+  scannedItems.push({
+    barcode,
+    address: document.getElementById("addrText").value,
+    pin: document.getElementById("pinText").value,
+    city: document.getElementById("cityText").value,
+    timestamp: new Date().toISOString()
+  });
+  showPage("pageActions");
+}
+
+/* ---------- FINAL ---------- */
+function scanNew() {
+  barcode = "";
+  document.getElementById("barcodeInput").value = "";
+  startBarcodeCamera();
+  showPage("pageBarcode");
+}
+
+function exportAll() {
+  const blob = new Blob([JSON.stringify(scannedItems, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "courier-data.json";
+  a.click();
+
+  if (confirm("Export successful. Clear stored data?")) {
+    scannedItems = [];
+  }
+}
+</script>
+</body>
+</html>
