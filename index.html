@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Courier Booking Helper</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
@@ -20,13 +20,13 @@ body {
 
 #camera {
   flex: 1;
-  position: relative;
   background: black;
+  position: relative;
 }
 
 #controls {
-  background: #fff;
   padding: 12px;
+  background: #fff;
   border-top: 1px solid #ccc;
 }
 
@@ -66,28 +66,26 @@ button {
 
 <body>
 
-<div id="camera">
-  <div id="reader"></div>
-  <div id="cropBox" class="hidden"></div>
-</div>
+<div id="camera"></div>
 
 <div id="controls">
 
-  <!-- BARCODE STEP -->
+  <!-- STEP 1 -->
   <div id="stepBarcode">
     <strong>Scan Barcode</strong>
-    <input id="barcodeInput" placeholder="Enter or verify barcode">
+    <div id="reader"></div>
+    <input id="barcodeInput" placeholder="Enter / verify barcode">
     <button onclick="goToAddress()">Next</button>
   </div>
 
-  <!-- ADDRESS CAPTURE -->
+  <!-- STEP 2 -->
   <div id="stepAddress" class="hidden">
     <strong>Capture Address</strong>
     <button onclick="captureAddress()">Capture Address</button>
-    <button class="secondary" onclick="rescanBarcode()">Back</button>
+    <button class="secondary" onclick="backToBarcode()">Back</button>
   </div>
 
-  <!-- REVIEW -->
+  <!-- STEP 3 -->
   <div id="stepReview" class="hidden">
     <strong>Review Address</strong>
 
@@ -95,13 +93,13 @@ button {
     <input id="phone" placeholder="Phone">
     <textarea id="address" rows="4" placeholder="Address"></textarea>
     <input id="city" placeholder="City">
-    <input id="pin" placeholder="PIN Code">
+    <input id="pin" placeholder="PIN">
 
     <button onclick="saveEntry()">Approve & Save</button>
     <button class="secondary" onclick="rescanAddress()">Rescan Address</button>
   </div>
 
-  <!-- ACTIONS -->
+  <!-- STEP 4 -->
   <div id="stepActions" class="hidden">
     <button onclick="startNew()">Scan New</button>
     <button class="secondary" onclick="exportAll()">Export All</button>
@@ -112,11 +110,13 @@ button {
 <canvas id="canvas" class="hidden"></canvas>
 
 <script>
+/* ------------------ GLOBAL ------------------ */
+let qr;
 let barcode = "";
-let videoStream;
+let addressVideo, addressStream;
 let db;
 
-/* ---------- IndexedDB ---------- */
+/* ------------------ DB ------------------ */
 const req = indexedDB.open("courierDB", 1);
 req.onupgradeneeded = e => {
   db = e.target.result;
@@ -124,97 +124,107 @@ req.onupgradeneeded = e => {
 };
 req.onsuccess = e => db = e.target.result;
 
-/* ---------- BARCODE ---------- */
-const html5QrCode = new Html5Qrcode("reader");
+/* ------------------ BARCODE ------------------ */
+function startBarcodeScanner() {
+  camera.innerHTML = '<div id="reader"></div>';
+  qr = new Html5Qrcode("reader");
 
-html5QrCode.start(
-  { facingMode: "environment" },
-  { fps: 10, qrbox: 250 },
-  text => {
-    barcode = text;
-    document.getElementById("barcodeInput").value = text;
-  }
-);
+  qr.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 120 } },
+    text => barcodeInput.value = text
+  );
+}
 
-function goToAddress() {
+startBarcodeScanner();
+
+async function goToAddress() {
   barcode = barcodeInput.value.trim();
   if (!barcode) return alert("Barcode required");
 
+  await qr.stop();
+  await qr.clear();
+
   stepBarcode.classList.add("hidden");
   stepAddress.classList.remove("hidden");
-  cropBox.classList.remove("hidden");
+
+  startAddressCamera();
 }
 
-function rescanBarcode() {
-  stepAddress.classList.add("hidden");
-  stepBarcode.classList.remove("hidden");
+/* ------------------ ADDRESS CAMERA ------------------ */
+async function startAddressCamera() {
+  addressVideo = document.createElement("video");
+  addressVideo.setAttribute("playsinline", true);
+  addressVideo.autoplay = true;
+
+  addressStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  });
+
+  addressVideo.srcObject = addressStream;
+  camera.innerHTML = "";
+  camera.appendChild(addressVideo);
+
+  const crop = document.createElement("div");
+  crop.id = "cropBox";
+  camera.appendChild(crop);
 }
 
-/* ---------- ADDRESS CAPTURE ---------- */
-async function captureAddress() {
-  const video = document.querySelector("video");
+function captureAddress() {
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
 
-  const w = video.videoWidth;
-  const h = video.videoHeight;
+  if (!addressVideo.videoWidth) {
+    alert("Camera not ready. Try again.");
+    return;
+  }
 
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = addressVideo.videoWidth;
+  canvas.height = addressVideo.videoHeight;
 
   ctx.filter = "grayscale(1) contrast(1.4)";
-  ctx.drawImage(video, 0, 0, w, h);
+  ctx.drawImage(addressVideo, 0, 0);
 
-  cropAndOCR(canvas);
+  processOCR(canvas);
 }
 
-async function cropAndOCR(canvas) {
-  const ctx = canvas.getContext("2d");
+/* ------------------ OCR ------------------ */
+async function processOCR(canvas) {
+  const w = canvas.width, h = canvas.height;
 
-  const crop = {
-    x: canvas.width * 0.1,
-    y: canvas.height * 0.3,
-    w: canvas.width * 0.8,
-    h: canvas.height * 0.4
-  };
+  const crop = document.createElement("canvas");
+  crop.width = w * 0.8 * 1.5;
+  crop.height = h * 0.4 * 1.5;
 
-  const cropped = document.createElement("canvas");
-  cropped.width = crop.w * 1.5;
-  cropped.height = crop.h * 1.5;
-
-  cropped.getContext("2d").drawImage(
+  crop.getContext("2d").drawImage(
     canvas,
-    crop.x, crop.y, crop.w, crop.h,
-    0, 0, cropped.width, cropped.height
+    w * 0.1, h * 0.3, w * 0.8, h * 0.4,
+    0, 0, crop.width, crop.height
   );
 
-  const { data } = await Tesseract.recognize(cropped, "eng", {
+  const result = await Tesseract.recognize(crop, "eng", {
     preserve_interword_spaces: 1
   });
 
-  parseAddress(data.text);
+  parseAddress(result.data.text);
 }
 
-/* ---------- PARSER ---------- */
+/* ------------------ PARSER ------------------ */
 function parseAddress(text) {
   stepAddress.classList.add("hidden");
   stepReview.classList.remove("hidden");
-  cropBox.classList.add("hidden");
 
   address.value = text.trim();
 
-  const phoneMatch = text.match(/(?:\+91[-\s]?)?[6-9]\d{9}/);
-  phone.value = phoneMatch ? phoneMatch[0] : "";
-
-  const pinMatch = text.match(/\b\d{6}\b/);
-  pin.value = pinMatch ? pinMatch[0] : "";
+  phone.value = (text.match(/(?:\+91[-\s]?)?[6-9]\d{9}/) || [""])[0];
+  pin.value = (text.match(/\b\d{6}\b/) || [""])[0];
 
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   name.value = lines.find(l => /^[A-Za-z .]{3,}$/.test(l)) || "";
   city.value = lines[lines.length - 2] || "";
 }
 
-/* ---------- SAVE ---------- */
+/* ------------------ SAVE ------------------ */
 function saveEntry() {
   const tx = db.transaction("scans", "readwrite");
   tx.objectStore("scans").add({
@@ -231,19 +241,28 @@ function saveEntry() {
   stepActions.classList.remove("hidden");
 }
 
+/* ------------------ NAV ------------------ */
 function rescanAddress() {
   stepReview.classList.add("hidden");
   stepAddress.classList.remove("hidden");
-  cropBox.classList.remove("hidden");
 }
 
-/* ---------- ACTIONS ---------- */
+function backToBarcode() {
+  addressStream.getTracks().forEach(t => t.stop());
+  stepAddress.classList.add("hidden");
+  stepBarcode.classList.remove("hidden");
+  startBarcodeScanner();
+}
+
 function startNew() {
+  addressStream.getTracks().forEach(t => t.stop());
   stepActions.classList.add("hidden");
   stepBarcode.classList.remove("hidden");
   barcodeInput.value = "";
+  startBarcodeScanner();
 }
 
+/* ------------------ EXPORT ------------------ */
 function exportAll() {
   const tx = db.transaction("scans", "readonly");
   const store = tx.objectStore("scans");
