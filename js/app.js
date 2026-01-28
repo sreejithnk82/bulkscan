@@ -1,88 +1,129 @@
 const App = {
-  bookings:[],
-  current:{},
-  init:function(){
+  bookings: [],
+  current: {},
+  
+  init: function() {
     this.showStep("step-barcode");
-    BarcodeCamera.start(this.barcodeScanned.bind(this));
+    this.startBarcodeScanner();
   },
-  showStep:function(id){
-    document.querySelectorAll(".step-view").forEach(s=>s.classList.remove("active"));
+
+  showStep: function(id) {
+    document.querySelectorAll(".step-view").forEach(s => s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
   },
-  barcodeScanned:function(decodedText){
-    document.getElementById("barcode-input").value = decodedText;
-    BarcodeCamera.stop();
-  },
-  proceedFromBarcode:function(){
-    const code = document.getElementById("barcode-input").value.trim();
-    if(!code){
-        alert("Please scan or enter a barcode"); 
-        return;
-    }
 
-    console.log("Barcode entered:", code); // debug
+  // -------- Step 1: Barcode Scanner --------
+  startBarcodeScanner: function() {
+    // Clear previous input
+    document.getElementById("barcode-input").value = "";
+
+    // Stop old scanner if running
+    try { BarcodeCamera.stop(); } catch(e){ console.log("Scanner stop error", e); }
+
+    // Start new scanner
+    BarcodeCamera.start(this.barcodeScanned.bind(this));
+  },
+
+  barcodeScanned: function(decodedText) {
+    document.getElementById("barcode-input").value = decodedText;
+    BarcodeCamera.stop(); // Stop after successful scan
+  },
+
+  proceedFromBarcode: function() {
+    const code = document.getElementById("barcode-input").value.trim();
+    if(!code) {
+      alert("Please scan or enter a barcode");
+      return;
+    }
 
     this.current = { barcode: code };
+    this.showStep("step-address");
 
-    this.showStep("step-address");       // Move to Step 2
-    PhotoCamera.startVideo();            // Start address camera
+    // Start address camera
+    try { PhotoCamera.startVideo(); } catch(e){ console.log("Address camera error", e); }
 
-    // Ensure the barcode scanner is stopped
+    // Ensure barcode scanner stopped
     try { BarcodeCamera.stop(); } catch(e){ console.log("Scanner stop error", e); }
   },
-  captureAddress: async function(){
+
+  // -------- Step 2: Capture Address --------
+  captureAddress: async function() {
     const canvas = PhotoCamera.capturePhoto();
     PhotoCamera.stopVideo();
+
     const text = await OCR.recognize(canvas);
-    const data = Parser.parse(text);
-    this.current = {...this.current,...data};
-    document.getElementById("review-name").value = data.name;
-    document.getElementById("review-phone").value = data.phone;
-    document.getElementById("review-address").value = data.address;
-    document.getElementById("review-city").value = data.city;
-    document.getElementById("review-pin").value = data.pin;
+    const data = Parser.parse(text); // should return {name, phone, address, city, pin}
+
+    this.current = {...this.current, ...data};
+
+    // Fill review inputs
+    document.getElementById("review-name").value = data.name || "";
+    document.getElementById("review-phone").value = data.phone || "";
+    document.getElementById("review-address").value = data.address || "";
+    document.getElementById("review-city").value = data.city || "";
+    document.getElementById("review-pin").value = data.pin || "";
+
     this.showStep("step-review");
   },
-  goBack:function(step){
-    if(step===1){
+
+  // -------- Step Navigation --------
+  goBack: function(step) {
+    if(step === 1){
       this.showStep("step-barcode");
-      BarcodeCamera.start(this.barcodeScanned.bind(this));
-      document.getElementById("barcode-input").value="";
+      this.startBarcodeScanner();
     }
-    if(step===2){
+    if(step === 2){
       this.showStep("step-address");
       PhotoCamera.startVideo();
     }
   },
-  saveBooking:function(){
+
+  // -------- Step 3: Review & Save --------
+  saveBooking: function() {
     this.current.name = document.getElementById("review-name").value;
     this.current.phone = document.getElementById("review-phone").value;
     this.current.address = document.getElementById("review-address").value;
     this.current.city = document.getElementById("review-city").value;
     this.current.pin = document.getElementById("review-pin").value;
+
     this.bookings.push({...this.current});
     document.getElementById("booking-count").textContent = this.bookings.length;
+
     this.showStep("step-actions");
   },
-  scanNew:function(){
-    this.current={};
-    document.getElementById("barcode-input").value="";
+
+  // -------- Actions --------
+  scanNew: function() {
+    this.current = {};
+    document.getElementById("barcode-input").value = "";
     this.showStep("step-barcode");
-    BarcodeCamera.start(this.barcodeScanned.bind(this));
+    this.startBarcodeScanner();
   },
-  exportAll:function(){
-    if(!this.bookings.length){ alert("No data to export"); return; }
-    const blob = new Blob([JSON.stringify(this.bookings,null,2)],{type:"application/json"});
+
+  exportAll: function() {
+    if(!this.bookings.length){ 
+      alert("No data to export"); 
+      return; 
+    }
+
+    const blob = new Blob([JSON.stringify(this.bookings, null, 2)], {type: "application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href=url; a.download="courier_bookings.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    a.href = url; 
+    a.download = "courier_bookings.json"; 
+    document.body.appendChild(a); 
+    a.click(); 
+    document.body.removeChild(a);
+
     if(confirm("Exported. Clear session?")) this.clearAll();
   },
-  clearAll:function(){
-    this.bookings=[];
+
+  clearAll: function() {
+    this.bookings = [];
     document.getElementById("booking-count").textContent = 0;
     this.scanNew();
   }
 };
 
-document.addEventListener("DOMContentLoaded",()=>App.init());
+// Init app on page load
+document.addEventListener("DOMContentLoaded", () => App.init());
