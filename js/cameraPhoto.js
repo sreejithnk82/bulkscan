@@ -1,43 +1,24 @@
-let photoStream = null;
-
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
-async function startPhotoCamera() {
-  stopPhotoCamera();
-
-  photoStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-  });
-
-  video.srcObject = photoStream;
-}
-
-function stopPhotoCamera() {
-  if (photoStream) {
-    photoStream.getTracks().forEach(t => t.stop());
-    photoStream = null;
-  }
-}
-
-async function captureAddress() {
-  await startPhotoCamera();
-
-  canvas.hidden = false;
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  ctx.filter = "grayscale(100%) contrast(160%)";
-  ctx.drawImage(video, 0, 0);
-
-  stopPhotoCamera();
-  runOCR();
-}
-
-async function runOCR() {
-  const worker = await Tesseract.createWorker("eng");
-  const { data } = await worker.recognize(canvas);
-  await worker.terminate();
-
-  parseAddressText(data.text);
-}
+const PhotoCamera = {
+    stream:null,
+    startVideo: async function(){
+        const video = document.getElementById("address-video");
+        try{
+            this.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1920},height:{ideal:1080}}});
+            video.srcObject = this.stream;
+        }catch(err){
+            alert("Camera failed: "+err);
+        }
+    },
+    stopVideo:function(){
+        if(this.stream) this.stream.getTracks().forEach(t=>t.stop());
+    },
+    capturePhoto:function(){
+        const video = document.getElementById("address-video");
+        const canvas = document.getElementById("address-canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        return canvas;
+    }
+};
