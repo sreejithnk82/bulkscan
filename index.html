@@ -110,26 +110,40 @@ function showPage(id) {
 
 /* ---------- BARCODE ---------- */
 
-function startBarcode() {
+async function startBarcode() {
+  // Stop barcode scanner
   if (scanner) {
-    scanner.stop().catch(()=>{});
+    try { await scanner.stop(); } catch {}
     scanner = null;
   }
 
-  // HARD RESET container
+  // Stop address camera if running
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+
+  // Reset state
+  barcode = "";
+  manualBarcode.value = "";
+
+  // HARD reset barcode DOM
   const box = document.querySelector("#pageBarcode .camera-box");
   box.innerHTML = '<div id="barcodeCam"></div>';
 
-  scanner = new Html5Qrcode("barcodeCam");
-  scanner.start(
-    { facingMode:"environment" },
-    { fps:10, qrbox:250 },
-    txt => {
-      barcode = txt;
-      manualBarcode.value = txt;
-      scanner.stop();
-    }
-  );
+  // Small delay lets mobile browser release camera
+  setTimeout(() => {
+    scanner = new Html5Qrcode("barcodeCam");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 250 },
+      txt => {
+        barcode = txt;
+        manualBarcode.value = txt;
+        scanner.stop();
+      }
+    );
+  }, 300);
 }
 
 
@@ -201,6 +215,7 @@ function startNew() {
   showPage("pageBarcode");
   startBarcode();
 }
+
 
 function exportAll() {
   const b = new Blob([JSON.stringify(entries)], {type:"application/json"});
