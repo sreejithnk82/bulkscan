@@ -13,16 +13,36 @@ const App = {
   },
 
   // -------- Step 1: Barcode Scanner --------
-  startBarcodeScanner: function() {
-    // Clear previous input
-    document.getElementById("barcode-input").value = "";
+ startBarcodeScanner: function() {
+    const containerId = "barcode-scanner-container";
 
-    // Stop old scanner if running
-    try { BarcodeCamera.stop(); } catch(e){ console.log("Scanner stop error", e); }
+    // If scanner exists, clear it first
+    if (this.html5QrCode) {
+        this.html5QrCode.clear().catch(() => {});
+    }
 
-    // Start new scanner
-    BarcodeCamera.start(this.barcodeScanned.bind(this));
-  },
+    this.html5QrCode = new Html5Qrcode(containerId);
+
+    const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+
+    this.html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        decodedText => {
+            document.getElementById("barcode-input").value = decodedText;
+            // Stop scanner after successful scan
+            this.html5QrCode.stop()
+                .then(() => this.html5QrCode.clear())
+                .catch(() => {});
+        },
+        err => {
+            // Ignore scan errors
+        }
+    ).catch(err => {
+        console.log("Barcode camera start failed:", err);
+        alert("Camera access failed. Please enter manually.");
+    });
+},
 
   barcodeScanned: function(decodedText) {
     document.getElementById("barcode-input").value = decodedText;
@@ -96,9 +116,17 @@ const App = {
   scanNew: function() {
     this.current = {};
     document.getElementById("barcode-input").value = "";
+
+    // Stop previous scanner if running
+    if (this.html5QrCode && this.html5QrCode.isScanning) {
+        this.html5QrCode.stop()
+            .then(() => this.html5QrCode.clear())
+            .catch(() => {});
+    }
+
     this.showStep("step-barcode");
     this.startBarcodeScanner();
-  },
+},
 
   exportAll: function() {
     if(!this.bookings.length){ 
