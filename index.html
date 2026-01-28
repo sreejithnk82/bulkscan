@@ -13,15 +13,22 @@ body { margin:0; font-family:sans-serif; background:#f2f2f2; }
 .page { display:none; padding:10px; }
 .page.active { display:block; }
 
-#cameraBox {
+.camera-box {
   height:60vh;
   background:black;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  position:relative;
 }
 
-video { width:100%; height:100%; object-fit:cover; }
+#barcodeCam, #addressVideo {
+  width:100%;
+  height:100%;
+}
+
+video {
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
 
 .controls {
   background:#fff;
@@ -43,7 +50,7 @@ button, input, textarea {
 <div id="pageBarcode" class="page active">
   <h3>Scan Barcode</h3>
 
-  <div id="cameraBox">
+  <div class="camera-box">
     <div id="barcodeCam"></div>
   </div>
 
@@ -57,7 +64,7 @@ button, input, textarea {
 <div id="pageAddress" class="page">
   <h3>Capture Address</h3>
 
-  <div id="cameraBox">
+  <div class="camera-box">
     <video id="addressVideo" autoplay playsinline></video>
   </div>
 
@@ -101,10 +108,13 @@ function showPage(id) {
   document.getElementById(id).classList.add("active");
 }
 
-/* BARCODE */
+/* ---------- BARCODE ---------- */
 function startBarcode() {
+  if (scanner) scanner.stop().catch(()=>{});
   scanner = new Html5Qrcode("barcodeCam");
-  scanner.start({ facingMode:"environment" }, { fps:10, qrbox:250 },
+  scanner.start(
+    { facingMode:"environment" },
+    { fps:10, qrbox:250 },
     txt => {
       barcode = txt;
       manualBarcode.value = txt;
@@ -121,10 +131,10 @@ function barcodeNext() {
   startAddressCamera();
 }
 
-/* ADDRESS CAMERA */
+/* ---------- ADDRESS CAMERA ---------- */
 async function startAddressCamera() {
   stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode:"environment" }
+    video:{ facingMode:"environment" }
   });
   addressVideo.srcObject = stream;
 }
@@ -139,7 +149,7 @@ function captureAddress() {
   runOCR(c.toDataURL());
 }
 
-/* OCR */
+/* ---------- OCR ---------- */
 async function runOCR(img) {
   alert("Reading address…");
   const r = await Tesseract.recognize(img, "eng");
@@ -155,7 +165,7 @@ function parseText(t) {
   name.value = t.split("\n")[0];
 }
 
-/* SAVE */
+/* ---------- SAVE ---------- */
 function saveEntry() {
   entries.push({
     barcode, name:name.value, phone:phone.value,
@@ -165,7 +175,7 @@ function saveEntry() {
   showPage("pageExport");
 }
 
-/* UTILS */
+/* ---------- UTILS ---------- */
 function rescanAddress() {
   showPage("pageAddress");
   startAddressCamera();
