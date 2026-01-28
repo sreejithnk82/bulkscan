@@ -3,10 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Courier Booking Helper</title>
+<title>Courier Booking Wizard</title>
 <link rel="stylesheet" href="css/app.css">
-
-<!-- Libraries -->
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
@@ -14,63 +12,63 @@
 
 <div id="app">
 
-    <!-- STEP 1: Barcode Scan -->
-    <div id="step-barcode" class="step-view active">
-        <h2>Step 1: Scan Barcode</h2>
-        <div id="barcode-scanner-container"></div>
-        <div class="input-group">
-            <label>Manual Barcode Input</label>
-            <input type="text" id="barcode-input" placeholder="Scan or enter manually">
-        </div>
-        <button class="btn btn-primary" onclick="App.goToStep2()">Next</button>
+  <!-- STEP 1: Barcode Scan -->
+  <div id="step-barcode" class="step-view active">
+    <h2>Step 1: Scan Barcode</h2>
+    <div id="barcode-scanner-container"></div>
+    <div class="input-group">
+      <label>Manual Barcode Input</label>
+      <input type="text" id="barcode-input" placeholder="Enter barcode manually">
     </div>
+    <button class="btn btn-primary" onclick="App.proceedFromBarcode()">Next</button>
+  </div>
 
-    <!-- STEP 2: Address Capture -->
-    <div id="step-address" class="step-view">
-        <h2>Step 2: Capture Address</h2>
-        <div id="address-camera-container">
-            <video id="address-video" autoplay playsinline></video>
-            <canvas id="address-canvas" style="display:none;"></canvas>
-        </div>
-        <button class="btn btn-primary" onclick="App.captureAddress()">Capture Address</button>
-        <button class="btn btn-outline" onclick="App.goBack(1)">Back</button>
+  <!-- STEP 2: Address Capture -->
+  <div id="step-address" class="step-view">
+    <h2>Step 2: Capture Address</h2>
+    <div id="address-camera-container">
+      <video id="address-video" autoplay playsinline></video>
+      <canvas id="address-canvas" style="display:none;"></canvas>
     </div>
+    <button class="btn btn-primary" onclick="App.captureAddress()">Capture Address</button>
+    <button class="btn btn-outline" onclick="App.goBack(1)">Back</button>
+  </div>
 
-    <!-- STEP 3: Review/Edit -->
-    <div id="step-review" class="step-view">
-        <h2>Step 3: Review Details</h2>
-        <div class="input-group">
-            <label>Name</label>
-            <input type="text" id="review-name">
-        </div>
-        <div class="input-group">
-            <label>Phone</label>
-            <input type="text" id="review-phone">
-        </div>
-        <div class="input-group">
-            <label>Address</label>
-            <textarea id="review-address"></textarea>
-        </div>
-        <div class="input-group">
-            <label>City</label>
-            <input type="text" id="review-city">
-        </div>
-        <div class="input-group">
-            <label>PIN</label>
-            <input type="text" id="review-pin">
-        </div>
-        <button class="btn btn-outline" onclick="App.goBack(2)">Re-scan Address</button>
-        <button class="btn btn-primary" onclick="App.saveBooking()">Save & Continue</button>
+  <!-- STEP 3: Review -->
+  <div id="step-review" class="step-view">
+    <h2>Step 3: Review Details</h2>
+    <div class="input-group">
+      <label>Name</label>
+      <input type="text" id="review-name">
     </div>
+    <div class="input-group">
+      <label>Phone</label>
+      <input type="text" id="review-phone">
+    </div>
+    <div class="input-group">
+      <label>Address</label>
+      <textarea id="review-address"></textarea>
+    </div>
+    <div class="input-group">
+      <label>City</label>
+      <input type="text" id="review-city">
+    </div>
+    <div class="input-group">
+      <label>PIN</label>
+      <input type="text" id="review-pin">
+    </div>
+    <button class="btn btn-outline" onclick="App.goBack(2)">Re-scan Address</button>
+    <button class="btn btn-primary" onclick="App.saveBooking()">Save & Continue</button>
+  </div>
 
-    <!-- STEP 4: Confirmation/Actions -->
-    <div id="step-actions" class="step-view">
-        <h2>Step 4: Booking Stored</h2>
-        <p>Total Bookings: <span id="booking-count">0</span></p>
-        <button class="btn btn-primary" onclick="App.scanNew()">Scan New Packet</button>
-        <button class="btn btn-outline" onclick="App.exportAll()">Export All</button>
-        <button class="btn btn-danger" onclick="App.clearAll()">Clear Session</button>
-    </div>
+  <!-- STEP 4: Confirmation -->
+  <div id="step-actions" class="step-view">
+    <h2>Step 4: Booking Stored</h2>
+    <p>Total Bookings: <span id="booking-count">0</span></p>
+    <button class="btn btn-primary" onclick="App.scanNew()">Scan New Packet</button>
+    <button class="btn btn-outline" onclick="App.exportAll()">Export All</button>
+    <button class="btn btn-danger" onclick="App.clearAll()">Clear Session</button>
+  </div>
 
 </div>
 
@@ -79,5 +77,6 @@
 <script src="js/ocr.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/app.js"></script>
+
 </body>
 </html>
