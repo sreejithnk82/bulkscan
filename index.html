@@ -1,220 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Courier Helper</title>
 
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/app.css">
+
 <script src="https://unpkg.com/html5-qrcode"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
-<style>
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #0f172a;
-  color: #fff;
-}
-.page {
-  display: none;
-  flex-direction: column;
-  height: 100vh;
-  padding: 12px;
-}
-.page.active { display: flex; }
-
-.camera-box {
-  height: 60vh;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-input, textarea, button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: none;
-}
-
-button {
-  background: #38bdf8;
-  color: #000;
-  font-weight: bold;
-}
-
-.secondary {
-  background: #334155;
-  color: #fff;
-}
-</style>
 </head>
 
 <body>
 
-<!-- PAGE 1: BARCODE -->
-<div class="page active" id="pageBarcode">
+<div class="page active" id="page-barcode">
   <h2>Scan Barcode</h2>
+  <div class="camera-box" id="barcode-box"></div>
+  <input id="barcodeInput" placeholder="Enter barcode manually">
+  <button onclick="goAddress()">Next</button>
+</div>
+
+<div class="page" id="page-address">
+  <h2>Capture Address</h2>
   <div class="camera-box">
-    <div id="barcodeCam"></div>
+    <video id="addressVideo" autoplay playsinline></video>
   </div>
-
-  <input id="barcodeInput" placeholder="Or enter barcode manually" />
-  <button onclick="nextToAddress()">Next</button>
+  <button onclick="captureAddress()">Capture</button>
+  <button class="secondary" onclick="backBarcode()">Back</button>
 </div>
 
-<!-- PAGE 2: ADDRESS -->
-<div class="page" id="pageAddress">
-  <h2>Scan Address</h2>
-  <div class="camera-box">
-    <video id="addrVideo" autoplay playsinline></video>
-    <canvas id="addrCanvas" hidden></canvas>
-  </div>
-
-  <button onclick="captureAddress()">Capture Address</button>
-  <button class="secondary" onclick="backToBarcode()">Back</button>
-</div>
-
-<!-- PAGE 3: REVIEW -->
-<div class="page" id="pageReview">
-  <h2>Review</h2>
-  <textarea id="addrText"></textarea>
-  <input id="cityInput" placeholder="City" />
-  <input id="pinInput" placeholder="PIN" />
-  <input id="phoneInput" placeholder="Phone" />
-
-  <button onclick="saveEntry()">Save</button>
-</div>
-
-<!-- PAGE 4: DONE -->
-<div class="page" id="pageDone">
-  <h2>Saved ✔</h2>
+<div class="page" id="page-done">
+  <h2>Captured ✔</h2>
   <button onclick="scanNew()">Scan New</button>
 </div>
 
-<script>
-let scanner = null;
-let addrStream = null;
-let current = {};
-let allData = [];
-
-/* ---------- Utilities ---------- */
-function showPage(id) {
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
-
-async function stopAllCameras() {
-  if (scanner) {
-    try { await scanner.stop(); } catch {}
-    scanner = null;
-  }
-  if (addrStream) {
-    addrStream.getTracks().forEach(t => t.stop());
-    addrStream = null;
-  }
-}
-
-/* ---------- BARCODE ---------- */
-async function startBarcode() {
-  await stopAllCameras();
-
-  document.getElementById("barcodeInput").value = "";
-  current = {};
-
-  const box = document.getElementById("barcodeCam");
-  box.innerHTML = "";                 // HARD reset DOM
-  box.innerHTML = "<div id='barcodeCamInner'></div>";
-
-  setTimeout(() => {
-    scanner = new Html5Qrcode("barcodeCamInner");
-    scanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      txt => {
-        current.barcode = txt;
-        document.getElementById("barcodeInput").value = txt;
-        scanner.stop();
-      }
-    );
-  }, 300);
-}
-
-/* ---------- ADDRESS ---------- */
-async function startAddressCamera() {
-  await stopAllCameras();
-
-  const video = document.getElementById("addrVideo");
-  addrStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-  });
-  video.srcObject = addrStream;
-}
-
-async function captureAddress() {
-  const video = addrVideo;
-  const canvas = addrCanvas;
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0);
-
-  await stopAllCameras();
-
-  const result = await Tesseract.recognize(canvas, "eng");
-  const text = result.data.text;
-
-  parseAddress(text);
-  showPage("pageReview");
-}
-
-/* ---------- PARSER ---------- */
-function parseAddress(text) {
-  addrText.value = text;
-
-  const pin = text.match(/\b\d{6}\b/);
-  if (pin) pinInput.value = pin[0];
-
-  const phone = text.match(/\b[6-9]\d{9}\b/);
-  if (phone) phoneInput.value = phone[0];
-}
-
-/* ---------- NAV ---------- */
-function nextToAddress() {
-  current.barcode = barcodeInput.value.trim();
-  if (!current.barcode) return alert("Barcode required");
-  showPage("pageAddress");
-  startAddressCamera();
-}
-
-function backToBarcode() {
-  showPage("pageBarcode");
-  startBarcode();
-}
-
-function saveEntry() {
-  allData.push({
-    barcode: current.barcode,
-    address: addrText.value,
-    city: cityInput.value,
-    pin: pinInput.value,
-    phone: phoneInput.value,
-    time: new Date().toISOString()
-  });
-  showPage("pageDone");
-}
-
-function scanNew() {
-  showPage("pageBarcode");
-  startBarcode();
-}
-
-/* ---------- INIT ---------- */
-startBarcode();
-</script>
+<script src="js/app.js"></script>
+<script src="js/cameraBarcode.js"></script>
+<script src="js/cameraPhoto.js"></script>
 
 </body>
 </html>
