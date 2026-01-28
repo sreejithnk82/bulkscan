@@ -1,87 +1,69 @@
-// Parser.js - Offline address parser for courier PWA
+// Parser.js - Offline From-address parser
 const Parser = {
   parse: function(text) {
-    // 1. Normalize OCR text
+    // Normalize text
     text = text.replace(/\r/g,'').replace(/\t/g,' ').replace(/\s+/g,' ').trim();
 
-    // 2. Split into lines
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    // Split lines
+    let lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
 
-    // 3. Initialize fields
-    let name = '';
-    let phone = '';
-    let pin = '';
-    let city = '';
-    let addressLines = [];
+    // Initialize
+    let name='', phone='', pin='', city='', addressLines=[];
+    let fromSection = '';
 
-    // 4. Detect known labels
-    lines.forEach(line => {
-      const l = line.toLowerCase();
-
-      // Name
-      if(l.includes('name:') || l.startsWith('name')) {
-        name = line.split(/name[:]?/i)[1].trim();
-      }
-
-      // Phone
-      if(l.includes('phone:') || l.match(/\+?\d{10,12}/)) {
-        const match = line.match(/\+?\d{10,12}/);
-        if(match) phone = match[0];
-      }
-
-      // PIN code
-      const pinMatch = line.match(/\b[1-9][0-9]{5}\b/);
-      if(pinMatch) pin = pinMatch[0];
-
-      // City
-      if(l.includes('city:')) {
-        city = line.split(/city[:]?/i)[1].trim();
-      }
-
-      // Address detection
-      if(l.includes('address:')) {
-        const a = line.split(/address[:]?/i)[1].trim();
-        if(a) addressLines.push(a);
-      }
-    });
-
-    // 5. Fallback heuristics if labels not found
-    // Name: first line if empty
-    if(!name && lines.length) name = lines[0];
-
-    // Phone: regex if not found
-    if(!phone) {
-      const phoneMatch = text.match(/\+?\d{10,12}/);
-      if(phoneMatch) phone = phoneMatch[0];
+    // Step 1: Try to find From: section
+    const lowerText = text.toLowerCase();
+    const fromIndex = lowerText.indexOf('from');
+    if(fromIndex !== -1) {
+      const toIndex = lowerText.indexOf('to', fromIndex);
+      fromSection = (toIndex !== -1) ? text.slice(fromIndex+4, toIndex) : text.slice(fromIndex+4);
+    } else {
+      fromSection = text; // fallback: whole text
     }
 
-    // PIN: last 6-digit number in text if not found
+    // Step 2: Split From section into lines or chunks
+    const chunks = fromSection.split(/,|\n/).map(c=>c.trim()).filter(c=>c);
+
+    chunks.forEach(c=>{
+      // Name: starts with "name:" or first line
+      if(!name && /name[:]?/i.test(c)) {
+        name = c.split(/name[:]?/i)[1].trim();
+        return;
+      }
+      // Phone
+      const phoneMatch = c.match(/\+?\d{10,12}/);
+      if(phoneMatch && !phone) phone = phoneMatch[0];
+
+      // Pin code
+      const pinMatch = c.match(/\b[1-9][0-9]{5}\b/);
+      if(pinMatch && !pin) pin = pinMatch[0];
+
+      // City: line with known cities or after pin
+      if(pin && !city) {
+        city = c.replace(pin,'').trim();
+        return;
+      }
+
+      // If not name, phone, pin, city, treat as address
+      if(c && c !== name && c !== phone && c !== pin && c !== city) addressLines.push(c);
+    });
+
+    // Fallbacks
+    if(!name && chunks.length) name = chunks[0];
     if(!pin) {
       const allPins = text.match(/\b[1-9][0-9]{5}\b/g);
-      if(allPins && allPins.length) pin = allPins[allPins.length - 1];
+      if(allPins && allPins.length) pin = allPins[0];
     }
-
-    // City: line near PIN or last line
     if(!city) {
-      const pinIndex = lines.findIndex(l=>l.includes(pin));
-      if(pinIndex > 0) city = lines[pinIndex - 1];
-      else city = lines[lines.length - 1];
+      const pinIndex = chunks.findIndex(c=>c.includes(pin));
+      if(pinIndex >= 0 && pinIndex < chunks.length-1) city = chunks[pinIndex+1];
     }
 
-    // Address: all lines except name, phone, city, pin
-    lines.forEach(line => {
-      if(line && line !== name && line !== city && !line.includes(phone) && !line.includes(pin)) {
-        if(!line.toLowerCase().includes('from') && !line.toLowerCase().includes('to')) {
-          addressLines.push(line);
-        }
-      }
-    });
     const address = addressLines.join(', ');
 
     return {name, phone, address, city, pin};
   }
 };
-
 /*const Parser = {
   parse: function(text) {
     const lines = text.split("\n").map(l => l.trim()).filter(l => l);
