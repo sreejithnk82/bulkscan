@@ -1,35 +1,12 @@
-let barcodeStream = null;
-let barcodeReader = null;
-
-const video = document.getElementById("video");
-
-async function startBarcodeScan() {
-  stopBarcodeScan();
-
-  barcodeStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-  });
-
-  video.srcObject = barcodeStream;
-
-  barcodeReader = new ZXing.BrowserBarcodeReader();
-
-  barcodeReader.decodeFromVideoElement(video, (result) => {
-    if (result) {
-      document.getElementById("barcodeInput").value = result.text;
-      stopBarcodeScan();
+const BarcodeCamera = {
+    scanner:null,
+    start:function(onSuccess){
+        if(this.scanner) this.scanner.clear().catch(()=>{});
+        this.scanner = new Html5Qrcode("barcode-scanner-container");
+        this.scanner.start({facingMode:"environment"}, {fps:10, qrbox:{width:250,height:150}}, onSuccess)
+            .catch(err=>console.warn("Barcode camera start failed",err));
+    },
+    stop:function(){
+        if(this.scanner) this.scanner.stop().then(()=>this.scanner.clear()).catch(()=>{});
     }
-  });
-}
-
-function stopBarcodeScan() {
-  if (barcodeReader) {
-    barcodeReader.reset();
-    barcodeReader = null;
-  }
-
-  if (barcodeStream) {
-    barcodeStream.getTracks().forEach(t => t.stop());
-    barcodeStream = null;
-  }
-}
+};
