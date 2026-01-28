@@ -1,29 +1,35 @@
-let barcodeScanner = null;
+let barcodeStream = null;
+let barcodeReader = null;
 
-async function startBarcodeCamera() {
-  await stopBarcodeCamera();
+const video = document.getElementById("video");
 
-  const box = document.getElementById("barcode-box");
-  box.innerHTML = "<div id='barcodeCam'></div>";
+async function startBarcodeScan() {
+  stopBarcodeScan();
 
-  setTimeout(() => {
-    barcodeScanner = new Html5Qrcode("barcodeCam");
-    barcodeScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      txt => {
-        barcodeInput.value = txt;
-        barcodeScanner.stop();
-      }
-    );
-  }, 300);
+  barcodeStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  });
+
+  video.srcObject = barcodeStream;
+
+  barcodeReader = new ZXing.BrowserBarcodeReader();
+
+  barcodeReader.decodeFromVideoElement(video, (result) => {
+    if (result) {
+      document.getElementById("barcodeInput").value = result.text;
+      stopBarcodeScan();
+    }
+  });
 }
 
-async function stopBarcodeCamera() {
-  if (barcodeScanner) {
-    try { await barcodeScanner.stop(); } catch {}
-    barcodeScanner = null;
+function stopBarcodeScan() {
+  if (barcodeReader) {
+    barcodeReader.reset();
+    barcodeReader = null;
+  }
+
+  if (barcodeStream) {
+    barcodeStream.getTracks().forEach(t => t.stop());
+    barcodeStream = null;
   }
 }
-
-startBarcodeCamera();
