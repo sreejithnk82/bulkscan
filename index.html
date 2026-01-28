@@ -109,8 +109,17 @@ function showPage(id) {
 }
 
 /* ---------- BARCODE ---------- */
+
 function startBarcode() {
-  if (scanner) scanner.stop().catch(()=>{});
+  if (scanner) {
+    scanner.stop().catch(()=>{});
+    scanner = null;
+  }
+
+  // HARD RESET container
+  const box = document.querySelector("#pageBarcode .camera-box");
+  box.innerHTML = '<div id="barcodeCam"></div>';
+
   scanner = new Html5Qrcode("barcodeCam");
   scanner.start(
     { facingMode:"environment" },
@@ -122,6 +131,8 @@ function startBarcode() {
     }
   );
 }
+
+
 startBarcode();
 
 function barcodeNext() {
