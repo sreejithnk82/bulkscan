@@ -1,31 +1,28 @@
-let currentBarcode = "";
-
-function show(id) {
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
-
-function goAddress() {
-  currentBarcode = barcodeInput.value.trim();
-  if (!currentBarcode) return alert("Barcode required");
-  stopBarcodeCamera();
-  show("page-address");
-  startAddressCamera();
-}
-
-function backBarcode() {
-  stopAddressCamera();
-  show("page-barcode");
-  startBarcodeCamera();
-}
-
-function captureAddress() {
-  stopAddressCamera();
-  show("page-done");
-}
-
 function scanNew() {
-  barcodeInput.value = "";
-  show("page-barcode");
-  startBarcodeCamera();
+  stopBarcodeScan();
+  stopPhotoCamera();
+
+  document.getElementById("barcodeInput").value = "";
+  document.getElementById("nameInput").value = "";
+  document.getElementById("phoneInput").value = "";
+  document.getElementById("addressInput").value = "";
+
+  document.getElementById("canvas").hidden = true;
+}
+
+function parseAddressText(text) {
+  const phone = text.match(/\b[6-9]\d{9}\b/)?.[0] || "";
+
+  const lines = text
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l.length > 3);
+
+  document.getElementById("nameInput").value = lines[0] || "";
+  document.getElementById("phoneInput").value = phone;
+  document.getElementById("addressInput").value = lines.join(", ");
+}
+
+function confirmEntry() {
+  alert("Saved (IndexedDB + Export next)");
 }
