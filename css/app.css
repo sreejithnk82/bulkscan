@@ -1,41 +1,39 @@
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #0f172a;
-  color: #fff;
+  font-family: Arial, sans-serif;
+  background: #f4f4f4;
 }
 
-.page {
-  display: none;
-  flex-direction: column;
-  height: 100vh;
-  padding: 12px;
-}
-
-.page.active { display: flex; }
-
-.camera-box {
+#cameraContainer {
   height: 60vh;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-  margin-bottom: 12px;
+  background: black;
 }
 
-input, button {
-  padding: 12px;
-  font-size: 16px;
-  margin-top: 8px;
-  border-radius: 8px;
-  border: none;
+video, canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#controls {
+  padding: 10px;
+  background: #ffffff;
 }
 
 button {
-  background: #38bdf8;
-  font-weight: bold;
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  font-size: 16px;
 }
 
-.secondary {
-  background: #334155;
-  color: #fff;
+input, textarea {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+textarea {
+  height: 80px;
 }
