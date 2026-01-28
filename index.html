@@ -1,42 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Courier Helper</title>
+  <meta charset="UTF-8">
+  <title>Courier Booking Helper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="css/app.css">
+  <!-- Libraries -->
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+  <link rel="stylesheet" href="app.css">
 </head>
 
 <body>
 
-<div class="page active" id="page-barcode">
-  <h2>Scan Barcode</h2>
-  <div class="camera-box" id="barcode-box"></div>
-  <input id="barcodeInput" placeholder="Enter barcode manually">
-  <button onclick="goAddress()">Next</button>
-</div>
-
-<div class="page" id="page-address">
-  <h2>Capture Address</h2>
-  <div class="camera-box">
-    <video id="addressVideo" autoplay playsinline></video>
+  <!-- Camera area (60%) -->
+  <div id="cameraContainer">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" hidden></canvas>
   </div>
-  <button onclick="captureAddress()">Capture</button>
-  <button class="secondary" onclick="backBarcode()">Back</button>
-</div>
 
-<div class="page" id="page-done">
-  <h2>Captured ✔</h2>
-  <button onclick="scanNew()">Scan New</button>
-</div>
+  <!-- Controls area -->
+  <div id="controls">
 
-<script src="js/app.js"></script>
-<script src="js/cameraBarcode.js"></script>
-<script src="js/cameraPhoto.js"></script>
+    <button onclick="startBarcodeScan()">📦 Scan Barcode</button>
+    <button onclick="scanNew()">🔄 Scan New</button>
+
+    <input id="barcodeInput" placeholder="Barcode (auto or manual)">
+
+    <hr>
+
+    <button onclick="captureAddress()">📸 Capture Address</button>
+
+    <input id="nameInput" placeholder="Name">
+    <input id="phoneInput" placeholder="Phone">
+    <textarea id="addressInput" placeholder="Address"></textarea>
+
+    <button onclick="confirmEntry()">✅ OK</button>
+  </div>
+
+  <!-- App scripts -->
+  <script src="cameraBarcode.js"></script>
+  <script src="cameraPhoto.js"></script>
+  <script src="app.js"></script>
 
 </body>
 </html>
