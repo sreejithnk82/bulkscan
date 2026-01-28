@@ -15,10 +15,20 @@ const App = {
   },
   proceedFromBarcode:function(){
     const code = document.getElementById("barcode-input").value.trim();
-    if(!code){ alert("Scan or enter barcode"); return; }
-    this.current={barcode:code};
-    this.showStep("step-address");
-    PhotoCamera.startVideo();
+    if(!code){
+        alert("Please scan or enter a barcode"); 
+        return;
+    }
+
+    console.log("Barcode entered:", code); // debug
+
+    this.current = { barcode: code };
+
+    this.showStep("step-address");       // Move to Step 2
+    PhotoCamera.startVideo();            // Start address camera
+
+    // Ensure the barcode scanner is stopped
+    try { BarcodeCamera.stop(); } catch(e){ console.log("Scanner stop error", e); }
   },
   captureAddress: async function(){
     const canvas = PhotoCamera.capturePhoto();
