@@ -1,229 +1,219 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Courier Helper</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-body { margin:0; font-family:sans-serif; background:#f2f2f2; }
-.page { display:none; padding:10px; }
-.page.active { display:block; }
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #0f172a;
+  color: #fff;
+}
+.page {
+  display: none;
+  flex-direction: column;
+  height: 100vh;
+  padding: 12px;
+}
+.page.active { display: flex; }
 
 .camera-box {
-  height:60vh;
-  background:black;
-  position:relative;
+  height: 60vh;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-#barcodeCam, #addressVideo {
-  width:100%;
-  height:100%;
+input, textarea, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
 }
 
-video {
-  width:100%;
-  height:100%;
-  object-fit:cover;
+button {
+  background: #38bdf8;
+  color: #000;
+  font-weight: bold;
 }
 
-.controls {
-  background:#fff;
-  padding:10px;
-}
-
-button, input, textarea {
-  width:100%;
-  padding:12px;
-  margin-top:8px;
-  font-size:16px;
+.secondary {
+  background: #334155;
+  color: #fff;
 }
 </style>
 </head>
 
 <body>
 
-<!-- BARCODE PAGE -->
-<div id="pageBarcode" class="page active">
-  <h3>Scan Barcode</h3>
-
+<!-- PAGE 1: BARCODE -->
+<div class="page active" id="pageBarcode">
+  <h2>Scan Barcode</h2>
   <div class="camera-box">
     <div id="barcodeCam"></div>
   </div>
 
-  <div class="controls">
-    <input id="manualBarcode" placeholder="Enter barcode manually">
-    <button onclick="barcodeNext()">Next</button>
-  </div>
+  <input id="barcodeInput" placeholder="Or enter barcode manually" />
+  <button onclick="nextToAddress()">Next</button>
 </div>
 
-<!-- ADDRESS PAGE -->
-<div id="pageAddress" class="page">
-  <h3>Capture Address</h3>
-
+<!-- PAGE 2: ADDRESS -->
+<div class="page" id="pageAddress">
+  <h2>Scan Address</h2>
   <div class="camera-box">
-    <video id="addressVideo" autoplay playsinline></video>
+    <video id="addrVideo" autoplay playsinline></video>
+    <canvas id="addrCanvas" hidden></canvas>
   </div>
 
-  <div class="controls">
-    <button onclick="captureAddress()">📸 Capture Address</button>
-    <button onclick="goBack()">⬅ Back</button>
-  </div>
+  <button onclick="captureAddress()">Capture Address</button>
+  <button class="secondary" onclick="backToBarcode()">Back</button>
 </div>
 
-<!-- REVIEW PAGE -->
-<div id="pageReview" class="page">
-  <h3>Review</h3>
+<!-- PAGE 3: REVIEW -->
+<div class="page" id="pageReview">
+  <h2>Review</h2>
+  <textarea id="addrText"></textarea>
+  <input id="cityInput" placeholder="City" />
+  <input id="pinInput" placeholder="PIN" />
+  <input id="phoneInput" placeholder="Phone" />
 
-  <input id="name" placeholder="Name">
-  <input id="phone" placeholder="Phone">
-  <textarea id="address" rows="4" placeholder="Address"></textarea>
-  <input id="city" placeholder="City">
-  <input id="pincode" placeholder="Pincode">
-
-  <button onclick="saveEntry()">Approve & Save</button>
-  <button onclick="rescanAddress()">Rescan Address</button>
+  <button onclick="saveEntry()">Save</button>
 </div>
 
-<!-- EXPORT PAGE -->
-<div id="pageExport" class="page">
-  <h3>Saved Data</h3>
-  <pre id="output"></pre>
-
-  <button onclick="startNew()">Scan New</button>
-  <button onclick="exportAll()">Export All</button>
+<!-- PAGE 4: DONE -->
+<div class="page" id="pageDone">
+  <h2>Saved ✔</h2>
+  <button onclick="scanNew()">Scan New</button>
 </div>
 
 <script>
-let scanner;
-let barcode = "";
-let stream;
-let entries = [];
+let scanner = null;
+let addrStream = null;
+let current = {};
+let allData = [];
 
+/* ---------- Utilities ---------- */
 function showPage(id) {
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
 
-/* ---------- BARCODE ---------- */
-
-async function startBarcode() {
-  // Stop barcode scanner
+async function stopAllCameras() {
   if (scanner) {
     try { await scanner.stop(); } catch {}
     scanner = null;
   }
-
-  // Stop address camera if running
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
+  if (addrStream) {
+    addrStream.getTracks().forEach(t => t.stop());
+    addrStream = null;
   }
+}
 
-  // Reset state
-  barcode = "";
-  manualBarcode.value = "";
+/* ---------- BARCODE ---------- */
+async function startBarcode() {
+  await stopAllCameras();
 
-  // HARD reset barcode DOM
-  const box = document.querySelector("#pageBarcode .camera-box");
-  box.innerHTML = '<div id="barcodeCam"></div>';
+  document.getElementById("barcodeInput").value = "";
+  current = {};
 
-  // Small delay lets mobile browser release camera
+  const box = document.getElementById("barcodeCam");
+  box.innerHTML = "";                 // HARD reset DOM
+  box.innerHTML = "<div id='barcodeCamInner'></div>";
+
   setTimeout(() => {
-    scanner = new Html5Qrcode("barcodeCam");
+    scanner = new Html5Qrcode("barcodeCamInner");
     scanner.start(
       { facingMode: "environment" },
       { fps: 10, qrbox: 250 },
       txt => {
-        barcode = txt;
-        manualBarcode.value = txt;
+        current.barcode = txt;
+        document.getElementById("barcodeInput").value = txt;
         scanner.stop();
       }
     );
   }, 300);
 }
 
-
-startBarcode();
-
-function barcodeNext() {
-  barcode = manualBarcode.value.trim();
-  if (!barcode) return alert("Barcode required");
-  showPage("pageAddress");
-  startAddressCamera();
-}
-
-/* ---------- ADDRESS CAMERA ---------- */
+/* ---------- ADDRESS ---------- */
 async function startAddressCamera() {
-  stream = await navigator.mediaDevices.getUserMedia({
-    video:{ facingMode:"environment" }
+  await stopAllCameras();
+
+  const video = document.getElementById("addrVideo");
+  addrStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
   });
-  addressVideo.srcObject = stream;
+  video.srcObject = addrStream;
 }
 
-function captureAddress() {
-  const v = addressVideo;
-  const c = document.createElement("canvas");
-  c.width = v.videoWidth;
-  c.height = v.videoHeight;
-  c.getContext("2d").drawImage(v, 0, 0);
-  stream.getTracks().forEach(t => t.stop());
-  runOCR(c.toDataURL());
-}
+async function captureAddress() {
+  const video = addrVideo;
+  const canvas = addrCanvas;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
 
-/* ---------- OCR ---------- */
-async function runOCR(img) {
-  alert("Reading address…");
-  const r = await Tesseract.recognize(img, "eng");
-  parseText(r.data.text);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
+
+  await stopAllCameras();
+
+  const result = await Tesseract.recognize(canvas, "eng");
+  const text = result.data.text;
+
+  parseAddress(text);
   showPage("pageReview");
 }
 
-function parseText(t) {
-  address.value = t.trim();
-  phone.value = (t.match(/\b\d{10}\b/)||[""])[0];
-  pincode.value = (t.match(/\b\d{6}\b/)||[""])[0];
-  city.value = (t.match(/Bangalore|Chennai|Mumbai|Delhi|Hyderabad/i)||[""])[0];
-  name.value = t.split("\n")[0];
+/* ---------- PARSER ---------- */
+function parseAddress(text) {
+  addrText.value = text;
+
+  const pin = text.match(/\b\d{6}\b/);
+  if (pin) pinInput.value = pin[0];
+
+  const phone = text.match(/\b[6-9]\d{9}\b/);
+  if (phone) phoneInput.value = phone[0];
 }
 
-/* ---------- SAVE ---------- */
-function saveEntry() {
-  entries.push({
-    barcode, name:name.value, phone:phone.value,
-    address:address.value, city:city.value, pincode:pincode.value
-  });
-  output.textContent = JSON.stringify(entries, null, 2);
-  showPage("pageExport");
-}
-
-/* ---------- UTILS ---------- */
-function rescanAddress() {
+/* ---------- NAV ---------- */
+function nextToAddress() {
+  current.barcode = barcodeInput.value.trim();
+  if (!current.barcode) return alert("Barcode required");
   showPage("pageAddress");
   startAddressCamera();
 }
 
-function goBack() {
+function backToBarcode() {
   showPage("pageBarcode");
   startBarcode();
 }
 
-function startNew() {
+function saveEntry() {
+  allData.push({
+    barcode: current.barcode,
+    address: addrText.value,
+    city: cityInput.value,
+    pin: pinInput.value,
+    phone: phoneInput.value,
+    time: new Date().toISOString()
+  });
+  showPage("pageDone");
+}
+
+function scanNew() {
   showPage("pageBarcode");
   startBarcode();
 }
 
-
-function exportAll() {
-  const b = new Blob([JSON.stringify(entries)], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(b);
-  a.download = "courier-data.json";
-  a.click();
-}
+/* ---------- INIT ---------- */
+startBarcode();
 </script>
 
 </body>
